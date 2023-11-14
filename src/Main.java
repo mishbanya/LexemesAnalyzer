@@ -1,0 +1,144 @@
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.*;
+
+public class Main {
+
+    public static void main(String[] args) throws IOException {
+        // Задаем путь к файлу с выражением
+        Path path = Path.of("src", "text", "text.txt");
+        Scanner scanner = new Scanner(path);
+        String expr = scanner.nextLine();
+
+        // Анализируем выражение и вычисляем результат
+        List<Lexeme> lexemes = lexemAnalyse(expr);
+        int result = expr(lexemes.listIterator());
+        System.out.println(result);
+    }
+
+    /**
+     * Производит анализ строки с арифметическим выражением,
+     * разбивая ее на лексемы (числа, операторы и скобки).
+     * @param expression строковое представление арифметического выражения
+     * @return список лексем, составляющих выражение
+     */
+    private static List<Lexeme> lexemAnalyse(String expression) {
+        List<Lexeme> lexemesList = new ArrayList<>();
+        StringBuilder sb = new StringBuilder();
+
+        for (char c : expression.toCharArray()) {
+            if (Character.isDigit(c)) {
+                sb.append(c);
+            } else {
+                if (!sb.isEmpty()) {
+                    lexemesList.add(new Lexeme(Integer.parseInt(sb.toString())));
+                    sb.setLength(0);
+                }
+
+                switch (c) {
+                    case ' ':
+                        break;
+                    case '-':
+                        lexemesList.add(new Lexeme(LexemeType.MINUS));
+                        break;
+                    case '+':
+                        lexemesList.add(new Lexeme(LexemeType.PLUS));
+                        break;
+                    case '*':
+                        lexemesList.add(new Lexeme(LexemeType.MULTI));
+                        break;
+                    case '/':
+                        lexemesList.add(new Lexeme(LexemeType.DIV));
+                        break;
+                    case '(':
+                        lexemesList.add(new Lexeme(LexemeType.LEFT_BRACKET));
+                        break;
+                    case ')':
+                        lexemesList.add(new Lexeme(LexemeType.RIGHT_BRACKET));
+                        break;
+                    default:
+                        throw new RuntimeException("Unexpected character");
+                }
+            }
+        }
+
+        if (sb.length() > 0) {
+            lexemesList.add(new Lexeme(Integer.parseInt(sb.toString())));
+        }
+        for(int i=0; i< lexemesList.size(); i++){
+            System.out.println(lexemesList.get(i));
+        }
+
+        return lexemesList;
+    }
+
+    /**
+     * Вычисляет значение числа или выражения в скобках.
+     * @param pos позиция в списке лексем
+     * @return вычисленное значение выражения
+     */
+    private static int factor(ListIterator<Lexeme> pos) {
+        Lexeme currentLexeme = pos.next();
+        return switch (currentLexeme.type) {
+            case NUMBER -> currentLexeme.value;
+            case LEFT_BRACKET -> {
+                int val = expr(pos);
+                if (pos.next().type != LexemeType.RIGHT_BRACKET)
+                    throw new RuntimeException("Отсутствует закрывающая скобка");
+                yield val;
+            }
+            default -> throw new RuntimeException("Unexpected character");
+        };
+    }
+
+    /**
+     * Вычисляет последовательность умножений и делений.
+     * @param pos позиция в списке лексем
+     * @return вычисленное значение выражения
+     */
+    private static int multDiv(ListIterator<Lexeme> pos) {
+        int value = factor(pos);
+        while (pos.hasNext()) {
+            Lexeme currentLexeme = pos.next();
+            switch (currentLexeme.type) {
+                case MULTI -> value *= factor(pos);
+                case DIV -> value /= factor(pos);
+                default -> {
+                    pos.previous();
+                    return value;
+                }
+            }
+        }
+        return value;
+    }
+
+    /**
+     * Вычисляет последовательность сложений и вычитаний.
+     * @param pos позиция в списке лексем
+     * @return вычисленное значение выражения
+     */
+    private static int plusMinus(ListIterator<Lexeme> pos) {
+        int value = multDiv(pos);
+        while (pos.hasNext()) {
+            Lexeme currentLexeme = pos.next();
+            switch (currentLexeme.type) {
+                case PLUS -> value += multDiv(pos);
+                case MINUS -> value -= multDiv(pos);
+                default -> {
+                    pos.previous();
+                    return value;
+                }
+            }
+        }
+        return value;
+    }
+
+    /**
+     * Вычисляет значение арифметического выражения.
+     * @param pos позиция в списке лексем
+     * @return вычисленное значение выражения
+     */
+    private static int expr(ListIterator<Lexeme> pos) {
+        return pos.hasNext() ? plusMinus(pos) : 0;
+    }
+}
